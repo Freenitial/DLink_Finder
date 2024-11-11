@@ -29,7 +29,8 @@
 
     powershell  -Command "Get-Content '%f0%' -Encoding UTF8 | Set-Content '%TEMP%\%n0%.ps1' -Encoding UTF8"
     powershell  -Nologo -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\%n0%.ps1" ^
-                -destination "%destination%" -name "%name%" -url "%url%" -include "%include%" -exclude "%exclude%" -extension "%extension%" -lucky "%lucky%" -arguments "%arguments%" -scriptpath "%dp0%"
+                -destination "%destination%" -name "%name%" -url "%url%" -include "%include%" -exclude "%exclude%" ^
+                -extension "%extension%" -lucky "%lucky%" -arguments "%arguments%" -scriptpath "%dp0%"
     
     del /f %TEMP%\%n0%.ps1
     set returncode=%ERRORLEVEL%
