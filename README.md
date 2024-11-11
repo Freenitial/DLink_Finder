@@ -22,9 +22,9 @@
 
 --------------------
 
-### Parameters ⚙️
+### Arguments ⚙️
 
-|  Parameter | Description                                    | Required |
+|  Argument  | Description                                    | Required |
 |:----------:|------------------------------------------------|----------|
 | **/url** (REQUIRED) | URL of the webpage to analyze         | Yes      |
 | **/name**           | Name for console output               | No       |
