@@ -61,6 +61,5 @@ DLink_Finder.bat ^
 
 --------------------
 
-- Requires PowerShell and administrative privileges for some operations
-- Internet connection is required
+- Requires PowerShell, Internet, and maybe administrative privileges
 - Many websites may block automated downloads. Feels free to make a pull request.
