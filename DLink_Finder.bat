@@ -58,11 +58,11 @@
     echo.   
     echo       Optional:
     echo       -----------
-    echo       /name        Custom name for console output and messages
-    echo       /pattern     Text pattern to filter download links (e.g., "x64", "win64")
-    echo       /extension   Specific file extension to search for (e.g., exe, msi, zip)
-    echo       /lucky       Automatically select and download the first matching file
-    echo       /exclude     Pattern to exclude from search results (e.g., "beta", "test")
+    echo       /name        Name for console output
+    echo       /pattern     Include links containing text
+    echo       /exclude     Exclude links containing text
+    echo       /extension   Include file extension
+    echo       /lucky       Auto select first result
     echo.   
     echo    EXAMPLES:
     echo       Basic usage:
@@ -127,12 +127,13 @@ Add-Type -AssemblyName System.Web
 #             PATTERN = OPTIONAL, SEARCH TEXT INSIDE FOUND LINKS                 #
 # ------------------------------------------------------------------------------ #
 
-$default_name = ""        # Only for console output (can be empty)
-$default_url = ""         # URL to parse
-$default_pattern = ""     # Pattern to search in filenames, eg: 64 (can be empty)
-$default_extension = ""   # File extension to search for
-$default_lucky = 0
-$default_exclude = ""
+$default_url = ""         # URL to parse (Required)
+$default_name = ""        # Name for console output
+$default_pattern = ""     # Include links containing text
+$default_exclude = ""     # Exclude links containing text
+$default_extension = ""   # Include file extension
+$default_lucky = 0        # Auto select first result
+
 
 # ------------------------------------------------------------------------------ #
 #                         YOU CAN STOP READ FROM THERE                           #
@@ -152,13 +153,13 @@ $extension = if ($extension) { $extension } else { $default_extension }
 $lucky = if ($lucky -eq 1) { 1 } else { $default_lucky }
 $exclude = if ($exclude) { $exclude } else { $default_exclude }
 
-Write-Host "URL = $url"
-
-#===========================================================#
-#                   Helper Functions                        #
-#===========================================================#
-
 $downloadPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+
+
+#===========================================================#
+#                        Functions                          #
+#===========================================================#
 
 # Function to get a single keypress
 function Get-KeyPress {
