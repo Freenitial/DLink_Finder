@@ -63,8 +63,11 @@
     echo       /extension        Include file extension
     echo       /lucky (0 or 1)   Auto select first result
     echo       /arguments        Execute file downloaded with args. 
-    echo                         Use + to separate
+    echo                         If multiple arguments, don't forget to "" the full chain
     echo                         Inside arg use ' instead of "
+    echo                         You have to use **+** to separate multiple arguments
+    echo                         Inside an argument you have to use **'** instead of **"**
+    echo.
     echo.
     echo    EXAMPLES:
     echo       Basic usage:
@@ -72,7 +75,7 @@
     echo       %~n0 /url https://example.com /extension exe
     echo       - Finds all .exe files on the specified webpage
     echo.   
-    echo       Filtered search:
+    echo       Exclude "beta", include MSI file type, include "64bit" in the name:
     echo       -----------
     echo       %~n0 /url https://example.com /include "64bit" /extension msi /exclude "beta"
     echo       - Finds 64-bit MSI files, excluding beta versions
@@ -82,16 +85,13 @@
     echo       %~n0 /url https://github.com/user/repo/releases /extension zip /lucky
     echo       - Automatically downloads the first ZIP file found
     echo.   
-    echo       Named search:
-    echo       -----------
-    echo       %~n0 /name "Visual Studio Code" /url https://code.visualstudio.com /include "system"
-    echo       - Searches with custom name for system installer
-    echo.
     echo       Launch executable with arguments:
     echo       -----------
-    echo       %~n0 /url https://example.com /extension msi /lucky 1 /arguments "/qn + TANSFORMS='C:\Users\My name\transform.mst' + /l*v + 'log.log'"
-    echo       - Download first MSI found and launch with specified arguments separated by "+"
-    echo         Notice that you have to replace "" by '' inside an argument
+    echo       %~n0 ^
+    echo           /url https://example.com ^
+    echo           /extension msi ^
+    echo           /lucky 1 ^
+    echo           /arguments "/qn + TANSFORMS='C:\Users\My name\transform.mst' + /l*v + 'log.log'"
     echo.  
     echo.  
     echo    NOTES:
