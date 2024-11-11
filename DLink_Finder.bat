@@ -949,7 +949,7 @@ try {
     }
 
     # Launch download + installation if file is executable
-    Invoke-Download -FileUrl $selectedLink -destination $destination -filename $name- -processedArgs $processedArgs
+    Invoke-Download -FileUrl $selectedLink -destination $destination -filename $name -processedArgs $processedArgs
 
 } catch {
     Write-Host "[ERROR] An error occurred: $_" -ForegroundColor Red
