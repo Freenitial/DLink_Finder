@@ -85,7 +85,7 @@ Add-Type -AssemblyName System.Web
 # ------------------------------------------------------------------------------ #
 
 $default_name = ""        # Only for console output (can be empty)
-$default_url = "https://github.com/git-for-windows/git/"         # URL to parse
+$default_url = ""         # URL to parse
 $default_pattern = ""     # Pattern to search in filenames, eg: 64 (can be empty)
 $default_extension = ""   # File extension to search for
 $default_lucky = 0
