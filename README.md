@@ -1,9 +1,9 @@
  ## **DLink Finder**
 
-Description
-|                           ---                            |
+ Description
+|                           ---                         |
 |                                                       |
-|   **Find and download dynamic files from web pages**   |
+|   **Find and download dynamic files from web pages**  |
 |                                                       |
 |   Optionnal : call with arguments to replace the default config   |
 
@@ -24,7 +24,7 @@ Description
 ## Usage 🚀 
 
 ```
-CopyDLinkFinder [/name name] [/url url] [/pattern pattern] [/extension ext]
+DLink_Finder.bat [/name name] [/url url] [/pattern pattern] [/extension ext]
 ```
 
 Parameters
@@ -32,8 +32,10 @@ Parameters
 |:----------:|---------------------------------------|----------|
 | **/name**      | Name for console output               | No       |
 | **/url**       | URL of the webpage to analyze         | Yes      |
-| **/pattern**   | Text to search in found links | No       |
+| **/pattern**   | Include links containing text         | No       |
+| **/exclude**   | Exclude links containing text         | No       |
 | **/extension** | File extension to search for          | No       |
+| **/lucky**     | Auto select first result              | No       |
 
 --------------------
 
