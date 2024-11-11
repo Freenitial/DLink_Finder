@@ -20,6 +20,8 @@
     if /i "%~1"=="/url"       (set "url=%~2"       & shift & shift & goto :parse_args)
     if /i "%~1"=="/pattern"   (set "pattern=%~2"   & shift & shift & goto :parse_args)
     if /i "%~1"=="/extension" (set "extension=%~2" & shift & shift & goto :parse_args)
+    if /i "%~1"=="/lucky"    (set "lucky=1"      & shift & shift & goto :parse_args)
+    if /i "%~1"=="/exclude"  (set "exclude=%~2"  & shift & shift & goto :parse_args)    
     REM We hit this point if an argument is not recognized
     set "returncode=argument not recognized"
     :after_args
@@ -54,7 +56,7 @@
 #>
 
 #===========================================================#
-#                    DLink Finder v1.0                      #
+#                    DLink Finder v1.1                      #
 #                           ---                             #
 #                      Author : FNTL                        #
 #===========================================================#
@@ -64,20 +66,30 @@ param(
     [string]$name,
     [string]$url,
     [string]$pattern,
-    [string]$extension
+    [string]$extension,
+    [int]$lucky,
+    [string]$exclude
 )
 
 Add-Type -AssemblyName System.Web
 
+
+
+#          ____________________________________________________________          #
+#      ____________________________________________________________________      #
+#  ____________________________________________________________________________  #
+
 # ------------------------------------------------------------------------------ #
-# COMPLETE VARIABLES BELOW, IF YOU DON'T WANT TO CALL THIS SCRIPT WITH ARGUMENTS #
-# PATTERN = OPTIONAL, SEARCH TEXT INSIDE FOUND LINKS                             #
+# COMPLETE VARIABLES BELOW IF YOU DON'T WANT TO CALL THIS SCRIPT WITH ARGUMENTS. #
+#             PATTERN = OPTIONAL, SEARCH TEXT INSIDE FOUND LINKS                 #
 # ------------------------------------------------------------------------------ #
 
-$default_name = ""        # Only for console output (can be empty)
-$default_url = ""         # URL to parse
+$default_name = "Git-setup"        # Only for console output (can be empty)
+$default_url = "https://github.com/Freenitial/DLink_Finder/tree/main"         # URL to parse
 $default_pattern = ""     # Pattern to search in filenames, eg: 64 (can be empty)
 $default_extension = ""   # File extension to search for
+$default_lucky = 0
+$default_exclude = "7z"
 
 # ------------------------------------------------------------------------------ #
 #                         YOU CAN STOP READ FROM THERE                           #
@@ -89,15 +101,13 @@ $default_extension = ""   # File extension to search for
 
 
 
-
-
-
-
 # Use default values if parameters are not provided
 $name = if ($name) { $name } else { $default_name }
 $url = if ($url) { $url } else { $default_url }
 $pattern = if ($pattern) { $pattern } else { $default_pattern }
 $extension = if ($extension) { $extension } else { $default_extension }
+$lucky = if ($lucky -eq 1) { 1 } else { $default_lucky }
+$exclude = if ($exclude) { $exclude } else { $default_exclude }
 
 Write-Host "URL = $url"
 
@@ -209,7 +219,6 @@ function Get-GitHubReleaseAssetLinks {
     try {
         $links = @()
         
-        # Si Tag est vide ou "latest", utiliser l'endpoint latest
         $apiUrl = if ([string]::IsNullOrEmpty($Tag) -or $Tag -eq "latest") {
             "https://api.github.com/repos/$Owner/$Repo/releases/latest"
         } else {
@@ -229,6 +238,16 @@ function Get-GitHubReleaseAssetLinks {
                 $links += $asset.browser_download_url
             }
         }
+
+        # Appliquer le filtre d'exclusion si spécifié
+        if ($exclude) {
+            $beforeCount = $links.Count
+            $links = $links | Where-Object { $_ -notmatch $exclude }
+            $excludedCount = $beforeCount - $links.Count
+            if ($excludedCount -gt 0) {
+                Write-Host "[INFO] Excluded $excludedCount files matching '$exclude'" -ForegroundColor Yellow
+            }
+        }
         
         if ($links.Count -gt 0) {
             Write-Host "[SUCCESS] Found $($links.Count) assets for release" -ForegroundColor Green
@@ -244,7 +263,6 @@ function Get-GitHubReleaseAssetLinks {
     }
 }
 
-
 function Get-GitHubRepoLinks {
     param ([string]$Owner, [string]$Repo)
     
@@ -258,7 +276,6 @@ function Get-GitHubRepoLinks {
         Write-Host "[INFO] Searching GitHub repository for downloadable files..." -ForegroundColor Cyan
 
         try {
-            # Utiliser l'API Contents au lieu de Git Trees
             $branch = "main"
             $contentsUrl = "https://api.github.com/repos/$Owner/$Repo/contents"
             try {
@@ -273,11 +290,13 @@ function Get-GitHubRepoLinks {
 
             foreach ($item in $contents) {
                 if ($item.type -eq "file" -and $item.name -match $extensionPattern) {
-                    # Utiliser directement l'URL de téléchargement fournie par l'API
+                    # Vérifier le filtre d'exclusion avant d'ajouter les liens
+                    if ($exclude -and ($item.name -match $exclude -or $item.download_url -match $exclude)) {
+                        continue
+                    }
                     [void]$links.Add($item.download_url)
-                    [void]$links.Add($item.html_url)
 
-                    if ($links.Count -ge 1000) {
+                    if ($links.Count -ge 500) {
                         Write-Host "[INFO] Reached maximum number of files (500)" -ForegroundColor Cyan
                         break
                     }
@@ -291,7 +310,7 @@ function Get-GitHubRepoLinks {
         $links = $links | Select-Object -Unique
 
         if ($links.Count -gt 0) {
-            Write-Host "[SUCCESS] Found $($links.Count/2) matching files" -ForegroundColor Green
+            Write-Host "[SUCCESS] Found $($links.Count) matching files" -ForegroundColor Green
             
             if (-not $extension) {
                 $foundExtensions = $links | ForEach-Object {
@@ -301,6 +320,11 @@ function Get-GitHubRepoLinks {
             }
         } else {
             Write-Host "[WARNING] No matching files found in repository" -ForegroundColor Yellow
+        }
+
+        # Si exclude est spécifié, afficher un message sur le nombre de fichiers exclus
+        if ($exclude -and $links.Count -gt 0) {
+            Write-Host "[INFO] Applied exclusion filter: '$exclude'" -ForegroundColor Yellow
         }
 
         return $links
@@ -327,24 +351,20 @@ function Get-DynamicContent {
             'Accept-Language' = 'en-US,en;q=0.5'
         }
 
-        # New request with appropriate headers if InitialResponse is null
         if ($null -eq $InitialResponse) {
             Write-Host "[INFO] Retrying with browser headers..." -ForegroundColor Yellow
             $InitialResponse = Invoke-WebRequest -Uri $Url -Headers $headers -UseBasicParsing
         }
 
-        # Determine which extensions to search for
         $extensionsToUse = if ($extension) { @($extension) } else { $extensionsToSearch }
 
         foreach ($ext in $extensionsToUse) {
-            # Method 1: Standard link parsing
             if ($InitialResponse.Links) {
                 $links += @($InitialResponse.Links | Where-Object { 
                     $_.href -and ($_.href -match "\.$ext($|\?)") -and ($_.href -match '^https?://')
                 } | Select-Object -ExpandProperty href)
             }
 
-            # Method 2: Parse HTML content for various link patterns
             $extPattern = '\.' + [Regex]::Escape($ext) + '(?:\?[^''`"\s]*)?'
             
             $patterns = @(
@@ -363,7 +383,6 @@ function Get-DynamicContent {
             }
         }
 
-        # Clean and validate links
         $validLinks = @()
         foreach ($link in $links) {
             if ($link -match '^https?://') {
@@ -388,7 +407,16 @@ function Get-DynamicContent {
 
         $validLinks = $validLinks | Select-Object -Unique
 
-        # Group links by extension for better reporting
+        # Appliquer le filtre d'exclusion si spécifié
+        if ($exclude) {
+            $beforeCount = $validLinks.Count
+            $validLinks = $validLinks | Where-Object { $_ -notmatch $exclude }
+            $excludedCount = $beforeCount - $validLinks.Count
+            if ($excludedCount -gt 0) {
+                Write-Host "[INFO] Excluded $excludedCount files matching '$exclude'" -ForegroundColor Yellow
+            }
+        }
+
         $groupedLinks = $validLinks | Group-Object { 
             if ($_ -match '\.([^.\?]+)(?:\?|$)') { $matches[1] } else { 'unknown' }
         }
@@ -617,9 +645,9 @@ try {
         $_ -and $_.Length -gt 1 -and $_ -match '^https?://' -and $_ -match $extensionPattern
     })
     if ($pattern) {
-        $patternLinks = $filteredLinks | Where-Object { $_ -match $pattern }
+        $patternLinks = @($filteredLinks | Where-Object { $_ -match $pattern })
         if ($patternLinks.Count -gt 0) {
-            $filteredLinks = $patternLinks
+            $filteredLinks = @($patternLinks)
         } else {
             Write-Host "[WARNING] No files matching pattern '$pattern' found. Showing all $extension files." -ForegroundColor Yellow
         }
@@ -647,77 +675,86 @@ try {
         Write-Host "`n_______________ Available Downloads _______________" -ForegroundColor Cyan
         $maxOptions = [Math]::Min(9, $filteredLinks.Count)
         
-        # Function to get file size
-        function Get-RemoteFileSize {
-            param ([string]$url)
-            try {
-                $response = Invoke-WebRequest -Uri $url -Method Head -UseBasicParsing
-                if ($response.Headers.'Content-Length') {
-                    $size = [long]$response.Headers.'Content-Length'
-                    if ($size -gt 1GB) {
-                        return "{0:N2} GB" -f ($size / 1GB)
-                    } elseif ($size -gt 1MB) {
-                        return "{0:N2} MB" -f ($size / 1MB)
-                    } elseif ($size -gt 1KB) {
-                        return "{0:N2} KB" -f ($size / 1KB)
-                    } else {
-                        return "$size B"
-                    }
-                }
-                return "Size unknown"
+        if ($lucky -eq 1) {
+            Write-Host "[INFO] Lucky mode: automatically selecting first option" -ForegroundColor Cyan
+            $selectedLink = $filteredLinks[0]
+            $fileName = try {
+                $uri = [System.Uri]$selectedLink
+                [System.Web.HttpUtility]::UrlDecode($uri.Segments[-1])
             } catch {
-                return "Size unknown"
+                $selectedLink
             }
-        }
-
-        # Préparer l'affichage
-        $displayItems = @()
-        for ($i = 1; $i -le $maxOptions; $i++) {
-            $link = $filteredLinks[$i - 1]
-            $fileName = if ($link -is [string]) {
+            Write-Host "[INFO] Selected: $fileName" -ForegroundColor Cyan
+        } else {
+            # Function to get file size
+            function Get-RemoteFileSize {
+                param ([string]$url)
                 try {
-                    $uri = [System.Uri]$link
-                    [System.Web.HttpUtility]::UrlDecode($uri.Segments[-1])
+                    $response = Invoke-WebRequest -Uri $url -Method Head -UseBasicParsing
+                    if ($response.Headers.'Content-Length') {
+                        $size = [long]$response.Headers.'Content-Length'
+                        if ($size -gt 1GB) {
+                            return "{0:N2} GB" -f ($size / 1GB)
+                        } elseif ($size -gt 1MB) {
+                            return "{0:N2} MB" -f ($size / 1MB)
+                        } elseif ($size -gt 1KB) {
+                            return "{0:N2} KB" -f ($size / 1KB)
+                        } else {
+                            return "$size B"
+                        }
+                    }
+                    return "Size unknown"
                 } catch {
-                    $link
+                    return "Size unknown"
                 }
-            } else {
-                $link.ToString()
+            }
+
+            $displayItems = @()
+            for ($i = 1; $i -le $maxOptions; $i++) {
+                $link = $filteredLinks[$i - 1]
+                $fileName = if ($link -is [string]) {
+                    try {
+                        $uri = [System.Uri]$link
+                        [System.Web.HttpUtility]::UrlDecode($uri.Segments[-1])
+                    } catch {
+                        $link
+                    }
+                } else {
+                    $link.ToString()
+                }
+                
+                Write-Host "Analyzing file $i of $maxOptions..." -ForegroundColor Gray -NoNewline
+                Write-Host "`r" -NoNewline
+                $fileSize = Get-RemoteFileSize -url $link
+                $displayItems += [PSCustomObject]@{
+                    Index = $i
+                    FileName = $fileName
+                    Size = $fileSize
+                }
             }
             
-            Write-Host "Analyzing file $i of $maxOptions..." -ForegroundColor Gray -NoNewline
             Write-Host "`r" -NoNewline
-            $fileSize = Get-RemoteFileSize -url $link
-            $displayItems += [PSCustomObject]@{
-                Index = $i
-                FileName = $fileName
-                Size = $fileSize
-            }
-        }
-        
-        # Effacer la ligne "Analyzing..."
-        Write-Host "`r" -NoNewline
-        Write-Host (" " * 50) -NoNewline
-        Write-Host "`r"
+            Write-Host (" " * 50) -NoNewline
+            Write-Host "`r"
 
-        # Afficher les résultats de manière formatée
-        foreach ($item in $displayItems) {
-            Write-Host ("[$($item.Index)] {0,-50} ({1})" -f $item.FileName, $item.Size) -ForegroundColor White
-        }
-        
-        Write-Host "---------------------------------------------------" -ForegroundColor Cyan
-        Write-Host "`nPress a number key (1-$maxOptions) to select a file..." -ForegroundColor Yellow
-        do {
-            try {
-                $selection = Get-KeyPress
-                $validInput = $selection -ge 1 -and $selection -le $maxOptions
-            } catch {
-                $validInput = $false
+            foreach ($item in $displayItems) {
+                Write-Host ("[$($item.Index)] {0,-50} ({1})" -f $item.FileName, $item.Size) -ForegroundColor White
             }
-        } while (-not $validInput)
+            
+            Write-Host "---------------------------------------------------" -ForegroundColor Cyan
+            Write-Host "`nPress a number key (1-$maxOptions) to select a file..." -ForegroundColor Yellow
+            do {
+                try {
+                    $selection = Get-KeyPress
+                    $validInput = $selection -ge 1 -and $selection -le $maxOptions
+                } catch {
+                    $validInput = $false
+                }
+            } while (-not $validInput)
 
-        Write-Host $selection
-        $selectedLink = $filteredLinks[$selection - 1]
+            Write-Host $selection
+            $selectedLink = $filteredLinks[$selection - 1]
+        }
     } else {
         $selectedLink = $filteredLinks[0]
         $fileName = try {
