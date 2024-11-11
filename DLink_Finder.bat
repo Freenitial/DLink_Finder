@@ -56,7 +56,7 @@
 #>
 
 #===========================================================#
-#                    DLink Finder v1.1                      #
+#                    DLink Finder v1.3                      #
 #                           ---                             #
 #                      Author : FNTL                        #
 #===========================================================#
@@ -84,12 +84,12 @@ Add-Type -AssemblyName System.Web
 #             PATTERN = OPTIONAL, SEARCH TEXT INSIDE FOUND LINKS                 #
 # ------------------------------------------------------------------------------ #
 
-$default_name = "Git-setup"        # Only for console output (can be empty)
-$default_url = "https://github.com/Freenitial/DLink_Finder/tree/main"         # URL to parse
+$default_name = ""        # Only for console output (can be empty)
+$default_url = "https://github.com/git-for-windows/git/"         # URL to parse
 $default_pattern = ""     # Pattern to search in filenames, eg: 64 (can be empty)
 $default_extension = ""   # File extension to search for
 $default_lucky = 0
-$default_exclude = "7z"
+$default_exclude = ""
 
 # ------------------------------------------------------------------------------ #
 #                         YOU CAN STOP READ FROM THERE                           #
@@ -189,23 +189,23 @@ $extensionsToSearch = if ($extension) {
 function Get-SiteType {
     param ([string]$Url)
     
-    # Define site patterns - GitHub repository and release pages
     $patterns = [ordered]@{
-        'GitHubRelease' = '^https?://(?:www\.)?github\.com/([^/]+)/([^/]+)/releases/(?:tag/([^/]+)|latest)$'
-        'GitHubRepo' = '^https?://(?:www\.)?github\.com/([^/]+)/([^/]+)(?:/.*)?$'
+        'GitHubRelease' = '^https?://(?:www\.)?github\.com/([^/]+)/([^/]+)/releases(?:/tag/([^/]+)|/latest|/?$)'
+        'GitHubRepo' = '^https?://(?:www\.)?github\.com/([^/]+)/([^/]+)(?:/(?!releases).*)?$'
     }
     
     foreach ($site in $patterns.Keys) {
         if ($Url -match $patterns[$site]) {
+            Write-Host "[DEBUG] Matched pattern: $site" -ForegroundColor Gray
+            
             if ($site -eq 'GitHubRepo') {
-                # Store repo owner and name for later use
                 $script:repoOwner = $matches[1]
                 $script:repoName = $matches[2]
             } elseif ($site -eq 'GitHubRelease') {
-                # Store repo owner, name, and tag for releases
                 $script:repoOwner = $matches[1]
                 $script:repoName = $matches[2]
-                $script:releaseTag = $matches[3]
+                $script:releaseTag = if ($matches.Count -gt 3) { $matches[3] } else { "" }
+                Write-Host "[DEBUG] Release info - Owner: $repoOwner, Repo: $repoName, Tag: $releaseTag" -ForegroundColor Gray
             }
             return $site
         }
@@ -219,45 +219,109 @@ function Get-GitHubReleaseAssetLinks {
     try {
         $links = @()
         
-        $apiUrl = if ([string]::IsNullOrEmpty($Tag) -or $Tag -eq "latest") {
-            "https://api.github.com/repos/$Owner/$Repo/releases/latest"
+        $isAllReleases = $Tag -eq "" -and $url -match "/releases$"
+        
+        if ($isAllReleases) {
+            $apiUrl = "https://api.github.com/repos/$Owner/$Repo/releases"
+            Write-Host "[INFO] Accessing GitHub API for all releases: $apiUrl" -ForegroundColor Cyan
+            
+            $headers = @{
+                'Accept' = 'application/vnd.github.v3+json'
+            }
+            
+            $releases = Invoke-RestMethod -Uri $apiUrl -Headers $headers -UseBasicParsing
+            
+            foreach ($release in $releases) {
+                foreach ($asset in $release.assets) {
+                    if ([string]::IsNullOrEmpty($extension) -or $asset.name -match "\.$extension($|\?)") {
+                        $links += [PSCustomObject]@{
+                            Url = $asset.browser_download_url
+                            ReleaseName = $release.name
+                            ReleaseTag = $release.tag_name
+                            PublishedAt = [DateTime]::Parse($release.published_at)
+                        }
+                    }
+                }
+            }
         } else {
-            "https://api.github.com/repos/$Owner/$Repo/releases/tags/$Tag"
-        }
-        
-        Write-Host "[INFO] Accessing GitHub API: $apiUrl" -ForegroundColor Cyan
-        
-        $headers = @{
-            'Accept' = 'application/vnd.github.v3+json'
-        }
-        
-        $release = Invoke-RestMethod -Uri $apiUrl -Headers $headers -UseBasicParsing
-        
-        foreach ($asset in $release.assets) {
-            if ([string]::IsNullOrEmpty($extension) -or $asset.name -match "\.$extension($|\?)") {
-                $links += $asset.browser_download_url
+            $apiUrl = if ([string]::IsNullOrEmpty($Tag) -or $Tag -eq "latest") {
+                "https://api.github.com/repos/$Owner/$Repo/releases/latest"
+            } else {
+                "https://api.github.com/repos/$Owner/$Repo/releases/tags/$Tag"
+            }
+            
+            Write-Host "[INFO] Accessing GitHub API for specific release: $apiUrl" -ForegroundColor Cyan
+            
+            $headers = @{
+                'Accept' = 'application/vnd.github.v3+json'
+            }
+            
+            $release = Invoke-RestMethod -Uri $apiUrl -Headers $headers -UseBasicParsing
+            
+            foreach ($asset in $release.assets) {
+                if ([string]::IsNullOrEmpty($extension) -or $asset.name -match "\.$extension($|\?)") {
+                    $links += [PSCustomObject]@{
+                        Url = $asset.browser_download_url
+                        ReleaseName = $release.name
+                        ReleaseTag = $release.tag_name
+                        PublishedAt = [DateTime]::Parse($release.published_at)
+                    }
+                }
             }
         }
 
-        # Appliquer le filtre d'exclusion si spécifié
         if ($exclude) {
             $beforeCount = $links.Count
-            $links = $links | Where-Object { $_ -notmatch $exclude }
+            $links = $links | Where-Object { $_.Url -notmatch $exclude }
             $excludedCount = $beforeCount - $links.Count
             if ($excludedCount -gt 0) {
                 Write-Host "[INFO] Excluded $excludedCount files matching '$exclude'" -ForegroundColor Yellow
             }
         }
-        
+
         if ($links.Count -gt 0) {
-            Write-Host "[SUCCESS] Found $($links.Count) assets for release" -ForegroundColor Green
-        } else {
-            Write-Host "[WARNING] No matching assets found in the release" -ForegroundColor Yellow
+            $extensionIndex = @{}
+            for ($i = 0; $i -lt $extensionsToSearch.Count; $i++) {
+                $extensionIndex[$extensionsToSearch[$i]] = $i
+            }
+
+            $sortedLinks = $links | Sort-Object {
+                $_.PublishedAt
+            } -Descending | Group-Object {
+                if ($_.Url -match '\.([^.\?]+)(?:\?|$)') { 
+                    $matches[1].ToLower()
+                } else { 
+                    'unknown'
+                }
+            } | Sort-Object {
+                $ext = $_.Name
+                if ($extensionIndex.ContainsKey($ext)) {
+                    $extensionIndex[$ext]
+                } else {
+                    [int]::MaxValue
+                }
+            } | ForEach-Object { $_.Group } | Select-Object -ExpandProperty Url
+
+            Write-Host "[SUCCESS] Found $($sortedLinks.Count) assets" -ForegroundColor Green
+            if ($isAllReleases) {
+                $releaseCount = ($links | Select-Object -ExpandProperty ReleaseTag -Unique).Count
+                Write-Host "[INFO] From $releaseCount different releases" -ForegroundColor Cyan
+            }
+
+            $groupedByExt = $sortedLinks | Group-Object { 
+                if ($_ -match '\.([^.\?]+)(?:\?|$)') { $matches[1] } else { 'unknown' }
+            }
+            foreach ($group in $groupedByExt) {
+                Write-Host "  - .$($group.Name): $($group.Count) files" -ForegroundColor Cyan
+            }
+
+            return $sortedLinks
         }
         
-        return $links
-    }
-    catch {
+        Write-Host "[WARNING] No matching assets found" -ForegroundColor Yellow
+        return @()
+        
+    } catch {
         Write-Host "[ERROR] Could not retrieve release assets: $_" -ForegroundColor Red
         return @()
     }
@@ -290,14 +354,13 @@ function Get-GitHubRepoLinks {
 
             foreach ($item in $contents) {
                 if ($item.type -eq "file" -and $item.name -match $extensionPattern) {
-                    # Vérifier le filtre d'exclusion avant d'ajouter les liens
                     if ($exclude -and ($item.name -match $exclude -or $item.download_url -match $exclude)) {
                         continue
                     }
                     [void]$links.Add($item.download_url)
 
-                    if ($links.Count -ge 500) {
-                        Write-Host "[INFO] Reached maximum number of files (500)" -ForegroundColor Cyan
+                    if ($links.Count -ge 1000) {
+                        Write-Host "[INFO] Reached maximum number of files (1000)" -ForegroundColor Cyan
                         break
                     }
                 }
@@ -307,29 +370,48 @@ function Get-GitHubRepoLinks {
             Write-Host "[DEBUG] Error accessing repository contents: $_" -ForegroundColor Gray
         }
 
-        $links = $links | Select-Object -Unique
+        $sortedLinks = [System.Collections.ArrayList]::new()
+        
+        $extensionIndex = @{}
+        for ($i = 0; $i -lt $extensionsToSearch.Count; $i++) {
+            $extensionIndex[$extensionsToSearch[$i]] = $i
+        }
 
-        if ($links.Count -gt 0) {
-            Write-Host "[SUCCESS] Found $($links.Count) matching files" -ForegroundColor Green
+        $groupedLinks = $links | Group-Object {
+            if ($_ -match '\.([^.\?]+)(?:\?|$)') { 
+                $matches[1].ToLower()
+            } else { 
+                'unknown'
+            }
+        }
+
+        $sortedGroups = $groupedLinks | Sort-Object {
+            $ext = $_.Name
+            if ($extensionIndex.ContainsKey($ext)) {
+                $extensionIndex[$ext]
+            } else {
+                [int]::MaxValue
+            }
+        }
+
+        foreach ($group in $sortedGroups) {
+            $sortedLinks.AddRange($group.Group)
+        }
+
+        if ($sortedLinks.Count -gt 0) {
+            Write-Host "[SUCCESS] Found $($sortedLinks.Count) matching files" -ForegroundColor Green
             
             if (-not $extension) {
-                $foundExtensions = $links | ForEach-Object {
+                $foundExtensions = $sortedLinks | ForEach-Object {
                     if ($_ -match '\.([^.]+)$') { $matches[1] }
                 } | Select-Object -Unique
                 Write-Host "[INFO] Found files with extensions: $($foundExtensions -join ', ')" -ForegroundColor Cyan
             }
-        } else {
-            Write-Host "[WARNING] No matching files found in repository" -ForegroundColor Yellow
         }
 
-        # Si exclude est spécifié, afficher un message sur le nombre de fichiers exclus
-        if ($exclude -and $links.Count -gt 0) {
-            Write-Host "[INFO] Applied exclusion filter: '$exclude'" -ForegroundColor Yellow
-        }
+        return $sortedLinks
 
-        return $links
-    }
-    catch {
+    } catch {
         Write-Host "[WARNING] GitHub repository access error: $_" -ForegroundColor Yellow
         return @()
     }
@@ -407,7 +489,6 @@ function Get-DynamicContent {
 
         $validLinks = $validLinks | Select-Object -Unique
 
-        # Appliquer le filtre d'exclusion si spécifié
         if ($exclude) {
             $beforeCount = $validLinks.Count
             $validLinks = $validLinks | Where-Object { $_ -notmatch $exclude }
@@ -417,26 +498,41 @@ function Get-DynamicContent {
             }
         }
 
-        $groupedLinks = $validLinks | Group-Object { 
-            if ($_ -match '\.([^.\?]+)(?:\?|$)') { $matches[1] } else { 'unknown' }
-        }
+        if ($validLinks.Count -gt 0) {
+            $extensionIndex = @{}
+            for ($i = 0; $i -lt $extensionsToSearch.Count; $i++) {
+                $extensionIndex[$extensionsToSearch[$i]] = $i
+            }
 
-        Write-Host "[INFO] Found $($validLinks.Count) valid download links:" -ForegroundColor Cyan
-        foreach ($group in $groupedLinks) {
-            Write-Host "  - .$($group.Name): $($group.Count) files" -ForegroundColor Cyan
-        }
-        
-        if ($validLinks.Count -eq 0) {
-            Write-Host "[WARNING] No valid download links found. Debug info:" -ForegroundColor Yellow
-            Write-Host "URL: $Url" -ForegroundColor Yellow
-            Write-Host "Raw links found: $($links.Count)" -ForegroundColor Yellow
+            $sortedLinks = $validLinks | Group-Object {
+                if ($_ -match '\.([^.\?]+)(?:\?|$)') { 
+                    $matches[1].ToLower()
+                } else { 
+                    'unknown'
+                }
+            } | Sort-Object {
+                $ext = $_.Name
+                if ($extensionIndex.ContainsKey($ext)) {
+                    $extensionIndex[$ext]
+                } else {
+                    [int]::MaxValue
+                }
+            } | ForEach-Object { $_.Group }
+
+            Write-Host "[INFO] Found $($sortedLinks.Count) valid download links:" -ForegroundColor Cyan
             
-            $debugPath = Join-Path $env:TEMP "debug_content.html"
-            $InitialResponse.Content | Out-File -FilePath $debugPath
-            Write-Host "HTML content saved to: $debugPath" -ForegroundColor Yellow
+            $groupedLinks = $sortedLinks | Group-Object { 
+                if ($_ -match '\.([^.\?]+)(?:\?|$)') { $matches[1] } else { 'unknown' }
+            }
+            foreach ($group in $groupedLinks) {
+                Write-Host "  - .$($group.Name): $($group.Count) files" -ForegroundColor Cyan
+            }
+
+            return $sortedLinks
         }
 
-        return $validLinks
+        Write-Host "[WARNING] No valid download links found" -ForegroundColor Yellow
+        return @()
 
     } catch {
         Write-Host "[ERROR] Error in Get-DynamicContent: $_" -ForegroundColor Red
@@ -472,7 +568,6 @@ function Invoke-ApplicationInstallation {
         $filePath = Join-Path $DownloadPath $fileName
         Write-Host "[INFO] Downloading to: $filePath" -ForegroundColor Cyan
 
-        # Créer une barre de progression personnalisée
         function Write-ProgressBar {
             param(
                 [int]$percent,
@@ -480,21 +575,18 @@ function Invoke-ApplicationInstallation {
                 [double]$totalMB,
                 [double]$speed
             )
-            $width = 50 # Largeur de la barre
+            $width = 50
             $filled = [math]::Round($width * $percent / 100)
             $empty = $width - $filled
             $bar = "[" + ("=" * $filled) + (" " * $empty) + "]"
             
-            # Effacer la ligne précédente
             Write-Host "`r" + (" " * 80) + "`r" -NoNewline
             
-            # Formater le message complet avant de l'afficher
             $message = "{0} {1}% {2:N1}MB/{3:N1}MB ({4:N1} MB/s)" -f $bar, $percent, $downloadedMB, $totalMB, $speed
             Write-Host $message -NoNewline -ForegroundColor Cyan
         }
 
         try {
-            # Obtenir la taille du fichier
             $webRequest = [System.Net.HttpWebRequest]::Create($ExeLink)
             $webRequest.Method = "HEAD"
             $webRequest.UserAgent = "Mozilla/5.0"
@@ -502,16 +594,13 @@ function Invoke-ApplicationInstallation {
             $totalBytes = $response.ContentLength
             $response.Close()
 
-            # Créer le fichier de destination
             $fileStream = [System.IO.File]::Create($filePath)
             
-            # Préparer la requête de téléchargement
             $webRequest = [System.Net.HttpWebRequest]::Create($ExeLink)
             $webRequest.UserAgent = "Mozilla/5.0"
             $response = $webRequest.GetResponse()
             $responseStream = $response.GetResponseStream()
             
-            # Paramètres pour le suivi de progression
             $buffer = New-Object byte[] 10KB
             $totalBytesRead = 0
             $timer = [System.Diagnostics.Stopwatch]::StartNew()
@@ -525,7 +614,6 @@ function Invoke-ApplicationInstallation {
                 $fileStream.Write($buffer, 0, $bytesRead)
                 $totalBytesRead += $bytesRead
                 
-                # Mettre à jour la progression toutes les 100ms
                 $now = $timer.ElapsedMilliseconds
                 if (($now - $lastUpdate) -gt 100) {
                     $percent = [math]::Round(($totalBytesRead / $totalBytes) * 100)
@@ -542,7 +630,6 @@ function Invoke-ApplicationInstallation {
             
             Write-Host "`n"
             
-            # Fermer les flux
             $fileStream.Close()
             $responseStream.Close()
             $response.Close()
