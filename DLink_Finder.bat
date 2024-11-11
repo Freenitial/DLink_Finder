@@ -9,19 +9,19 @@
     if /i "%~1"=="-help"  goto :help
     if /i "%~1"=="--help" goto :help
 
-    set "f0=%~f0" & set "n0=%~n0"
-    set "name="  
-    set "url="   
-    set "pattern="
-    set "extension="
+    set "f0=%~f0" & set "n0=%~n0" & set "dp0=%~dp0"
+    set "name=" & set "url=" & set "destination=" & set "include=" & set "exclude=" & set "extension=" & set "lucky="
+
     :parse_args
     if "%~1"=="" goto :after_args
-    if /i "%~1"=="/name"      (set "name=%~2"      & shift & shift & goto :parse_args)
-    if /i "%~1"=="/url"       (set "url=%~2"       & shift & shift & goto :parse_args)
-    if /i "%~1"=="/pattern"   (set "pattern=%~2"   & shift & shift & goto :parse_args)
-    if /i "%~1"=="/extension" (set "extension=%~2" & shift & shift & goto :parse_args)
-    if /i "%~1"=="/lucky"    (set "lucky=1"      & shift & shift & goto :parse_args)
-    if /i "%~1"=="/exclude"  (set "exclude=%~2"  & shift & shift & goto :parse_args)    
+    if /i "%~1"=="/name"         (set "name=%~2"         & shift & shift & goto :parse_args)
+    if /i "%~1"=="/url"          (set "url=%~2"          & shift & shift & goto :parse_args)
+    if /i "%~1"=="/destination"  (set "destination=%~2"  & shift & shift & goto :parse_args)    
+    if /i "%~1"=="/include"      (set "include=%~2"      & shift & shift & goto :parse_args)
+    if /i "%~1"=="/exclude"      (set "exclude=%~2"      & shift & shift & goto :parse_args)   
+    if /i "%~1"=="/extension"    (set "extension=%~2"    & shift & shift & goto :parse_args)
+    if /i "%~1"=="/lucky"        (set "lucky=%~2"        & shift & shift & goto :parse_args)
+    if /i "%~1"=="/arguments"    (set "arguments=%~2"    & shift & shift & goto :parse_args)
     REM We hit this point if an argument is not recognized
     echo Argument not recognized : "%~1"
     pause & exit /b 2
@@ -29,15 +29,16 @@
 
     powershell  -Command "Get-Content '%f0%' -Encoding UTF8 | Set-Content '%TEMP%\%n0%.ps1' -Encoding UTF8"
     powershell  -Nologo -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\%n0%.ps1" ^
-                -name "%name%" -url "%url%" -pattern "%pattern%" -extension "%extension%"
-                
+                -destination "%destination%" -name "%name%" -url "%url%" -include "%include%" -exclude "%exclude%" -extension "%extension%" -lucky "%lucky%" -arguments "%arguments%" -scriptpath "%dp0%"
+    
+    del /f %TEMP%\%n0%.ps1
     set returncode=%ERRORLEVEL%
     exit /b %returncode%
 
     :help
     echo.
     echo    =============================================================================
-    echo                                 DLink Finder v1.3                              
+    echo                                 DLink Finder v1.4                              
     echo                        Download Files From Web Pages Easily
     echo                                        ---
     echo                           Author : Freenitial on GitHub
@@ -47,23 +48,24 @@
     echo       Automatically finds and downloads files from web pages, GitHub repositories,
     echo       and release pages. Supports multiple file types and filtering options.
     echo.   
-    echo    SYNTAX:
-    echo       %~n0 [/name name] [/url url] [/pattern pattern] [/extension ext] 
-    echo           [/lucky] [/exclude pattern]
     echo.   
-    echo    PARAMETERS:
+    echo    ARGUMENTS:
     echo       Required:
     echo       -----------
     echo       /url         URL of the webpage to analyze
     echo.   
     echo       Optional:
     echo       -----------
-    echo       /name        Name for console output
-    echo       /pattern     Include links containing text
-    echo       /exclude     Exclude links containing text
-    echo       /extension   Include file extension
-    echo       /lucky       Auto select first result
-    echo.   
+    echo       /destination      Path where store file
+    echo       /name             Name for console output
+    echo       /include          Include links containing text
+    echo       /exclude          Exclude links containing text
+    echo       /extension        Include file extension
+    echo       /lucky (0 or 1)   Auto select first result
+    echo       /arguments        Execute file downloaded with args. 
+    echo                         Use + to separate
+    echo                         Inside arg use ' instead of "
+    echo.
     echo    EXAMPLES:
     echo       Basic usage:
     echo       -----------
@@ -72,7 +74,7 @@
     echo.   
     echo       Filtered search:
     echo       -----------
-    echo       %~n0 /url https://example.com /pattern "64bit" /extension msi /exclude "beta"
+    echo       %~n0 /url https://example.com /include "64bit" /extension msi /exclude "beta"
     echo       - Finds 64-bit MSI files, excluding beta versions
     echo.   
     echo       Quick download:
@@ -82,13 +84,20 @@
     echo.   
     echo       Named search:
     echo       -----------
-    echo       %~n0 /name "Visual Studio Code" /url https://code.visualstudio.com /pattern "system"
+    echo       %~n0 /name "Visual Studio Code" /url https://code.visualstudio.com /include "system"
     echo       - Searches with custom name for system installer
-    echo.   
+    echo.
+    echo       Launch executable with arguments:
+    echo       -----------
+    echo       %~n0 /url https://example.com /extension msi /lucky 1 /arguments "/qn + TANSFORMS='C:\Users\My name\transform.mst' + /l*v + 'log.log'"
+    echo       - Download first MSI found and launch with specified arguments separated by "+"
+    echo         Notice that you have to replace "" by '' inside an argument
+    echo.  
+    echo.  
     echo    NOTES:
     echo       * Without /extension specified, searches for all common file types
     echo       * /lucky is useful for automated scripts and known download pages
-    echo       * /pattern and /exclude support partial matches and are case-insensitive
+    echo       * /include and /exclude support partial matches and are case-insensitive
     echo       * Special support for GitHub repositories and release pages
     echo       * Downloads are saved to the current directory
     echo.   
@@ -96,7 +105,6 @@
     echo       * Generic websites
     echo       * GitHub repositories
     echo       * GitHub release pages
-    echo       * Direct download links
     echo.   
     echo    =============================================================================
     echo.
@@ -106,17 +114,18 @@
 
 
 param(
+    [string]$destination,
     [string]$name,
     [string]$url,
-    [string]$pattern,
+    [string]$include,
+    [string]$exclude,
     [string]$extension,
+    [string]$scriptpath,
     [int]$lucky,
-    [string]$exclude
+    [string]$arguments
 )
 
 Add-Type -AssemblyName System.Web
-
-
 
 #          ____________________________________________________________          #
 #      ____________________________________________________________________      #
@@ -124,15 +133,16 @@ Add-Type -AssemblyName System.Web
 
 # ------------------------------------------------------------------------------ #
 # COMPLETE VARIABLES BELOW IF YOU DON'T WANT TO CALL THIS SCRIPT WITH ARGUMENTS. #
-#             PATTERN = OPTIONAL, SEARCH TEXT INSIDE FOUND LINKS                 #
 # ------------------------------------------------------------------------------ #
 
-$default_url = ""         # URL to parse (Required)
-$default_name = ""        # Name for console output
-$default_pattern = ""     # Include links containing text
-$default_exclude = ""     # Exclude links containing text
-$default_extension = ""   # Include file extension
-$default_lucky = 0        # Auto select first result
+$default_url = ""            # URL to parse (Required)
+$default_destination = ""    # File path destination
+$default_name = ""           # Name for console output
+$default_include = ""        # Include links containing text
+$default_exclude = ""        # Exclude links containing text
+$default_extension = ""      # Include file extension
+$default_lucky = 0           # Auto select first result
+$default_arguments = ""      # Execute file downloaded with args. Use '' to separate.
 
 
 # ------------------------------------------------------------------------------ #
@@ -146,15 +156,28 @@ $default_lucky = 0        # Auto select first result
 
 
 # Use default values if parameters are not provided
-$name = if ($name) { $name } else { $default_name }
-$url = if ($url) { $url } else { $default_url }
-$pattern = if ($pattern) { $pattern } else { $default_pattern }
-$extension = if ($extension) { $extension } else { $default_extension }
-$lucky = if ($lucky -eq 1) { 1 } else { $default_lucky }
-$exclude = if ($exclude) { $exclude } else { $default_exclude }
+$name =        if ($name)        { $name }        else { $default_name }
+$url =         if ($url)         { $url }         else { $default_url }
+$include =     if ($include)     { $include }     else { $default_include }
+$exclude =     if ($exclude)     { $exclude }     else { $default_exclude }
+$extension =   if ($extension)   { $extension }   else { $default_extension }
+$lucky =       if ($lucky -eq 1) { 1 }            else { $default_lucky }
 
-$downloadPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+$destination = if ($destination) { 
+    $destination.Trim('"') 
+} elseif ($default_destination) { 
+    $default_destination.Trim('"') 
+} else { 
+    $scriptpath.Trim('"') 
+}
 
+$arguments = $arguments -replace "'", '"'
+$argArray = $arguments -split '\s*\+\s*'
+$processedArgs = @()
+foreach ($arg in $argArray) {
+    $arg = $arg.Trim()
+    $processedArgs += $arg
+}
 
 
 #===========================================================#
@@ -235,7 +258,7 @@ function Get-SiteType {
     
     $patterns = [ordered]@{
         'GitHubRelease' = '^https?://(?:www\.)?github\.com/([^/]+)/([^/]+)/releases(?:/tag/([^/]+)|/latest|/?$)'
-        'GitHubRepo' = '^https?://(?:www\.)?github\.com/([^/]+)/([^/]+)(?:/(?!releases).*)?$'
+        'GitHubRepo' =    '^https?://(?:www\.)?github\.com/([^/]+)/([^/]+)(?:/(?!releases).*)?$'
     }
     
     foreach ($site in $patterns.Keys) {
@@ -584,32 +607,53 @@ function Get-DynamicContent {
     }
 }
 
-function Invoke-ApplicationInstallation {
+function Invoke-Download {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
-        [string]$ExeLink,
+        [string]$FileUrl,
+        
         [Parameter(Mandatory = $true)]
-        [string]$DownloadPath
+        [string]$destination,
+        
+        [Parameter(Mandatory = $false)]
+        [string]$filename,
+        
+        [Parameter(Mandatory = $false)]
+        [string[]]$processedArgs
     )
+
+    $executableExtensions = @('exe', 'msi', 'msix', 'msp', 'appx', 'appxbundle', 'bat', 'cmd', 'ps1', 'vbs', 'reg')
 
     try {
         Write-Host "`n[INFO] Downloading file..." -ForegroundColor Cyan
         
-        # Extract file name
-        $fileName = try {
-            $uri = [System.Uri]$ExeLink
+        # Extract file name and extension
+        $originalFileName = try {
+            $uri = [System.Uri]$FileUrl
             $lastSegment = $uri.Segments[-1]
-            if ([string]::IsNullOrWhiteSpace($lastSegment) -or $lastSegment -eq "/" -or $lastSegment.Length -le 4) {
-                "download_$(Get-Date -Format 'yyyyMMddHHmmss').$extension"
+            if ([string]::IsNullOrWhiteSpace($lastSegment) -or $lastSegment -eq "/") {
+                "download_$(Get-Date -Format 'yyyyMMddHHmmss')"
             } else {
                 [System.Web.HttpUtility]::UrlDecode($lastSegment)
             }
         } catch {
-            "download_$(Get-Date -Format 'yyyyMMddHHmmss').$extension"
+            "download_$(Get-Date -Format 'yyyyMMddHHmmss')"
         }
 
-        $filePath = Join-Path $DownloadPath $fileName
+        $extension = [System.IO.Path]::GetExtension($originalFileName)
+
+        # Use custom filename if provided, keeping the original extension
+        if ($filename) {
+            $fileName = $filename + $extension
+        } else {
+            $fileName = $originalFileName
+        }
+
+        $extension = $extension.TrimStart('.')
+        $isExecutable = $executableExtensions -contains $extension.ToLower()
+
+        $filePath = Join-Path $destination $fileName
         Write-Host "[INFO] Downloading to: $filePath" -ForegroundColor Cyan
 
         function Write-ProgressBar {
@@ -631,7 +675,7 @@ function Invoke-ApplicationInstallation {
         }
 
         try {
-            $webRequest = [System.Net.HttpWebRequest]::Create($ExeLink)
+            $webRequest = [System.Net.HttpWebRequest]::Create($FileUrl)
             $webRequest.Method = "HEAD"
             $webRequest.UserAgent = "Mozilla/5.0"
             $response = $webRequest.GetResponse()
@@ -640,7 +684,7 @@ function Invoke-ApplicationInstallation {
 
             $fileStream = [System.IO.File]::Create($filePath)
             
-            $webRequest = [System.Net.HttpWebRequest]::Create($ExeLink)
+            $webRequest = [System.Net.HttpWebRequest]::Create($FileUrl)
             $webRequest.UserAgent = "Mozilla/5.0"
             $response = $webRequest.GetResponse()
             $responseStream = $response.GetResponseStream()
@@ -690,17 +734,24 @@ function Invoke-ApplicationInstallation {
             $fileSize = (Get-Item $filePath).Length
             if ($fileSize -lt 1000) {
                 Write-Host "[WARNING] Downloaded file is suspiciously small ($fileSize bytes)" -ForegroundColor Yellow
-                $proceed = Read-Host "Do you want to proceed with installation? (Y/N)"
+                $proceed = Read-Host "Do you want to proceed? (Y/N)"
                 if ($proceed -ne 'Y') {
                     Remove-Item $filePath -Force
-                    Write-Host "[INFO] Installation cancelled by user." -ForegroundColor Yellow
+                    Write-Host "[INFO] Operation cancelled by user." -ForegroundColor Yellow
                     return
                 }
             }
-            Write-Host "[SUCCESS] Download completed. Launching installer..." -ForegroundColor Green
-            Start-Process -FilePath $filePath -Wait
-            Write-Host "[SUCCESS] Installation completed successfully." -ForegroundColor Green
-            Remove-Item $filePath -Force
+
+            if ($isExecutable) {
+                Write-Host "[SUCCESS] Download completed. Launching installer..." -ForegroundColor Green
+                if ($processedArgs) { Start-Process -FilePath $filepath -ArgumentList $processedArgs -Wait }
+                else { Start-Process -FilePath $filepath -Wait }
+                Write-Host "[SUCCESS] Installation completed successfully." -ForegroundColor Green
+                Remove-Item $filePath -Force
+            } else {
+                Write-Host "[SUCCESS] File downloaded successfully to: $filePath" -ForegroundColor Green
+                Write-Host "[INFO] No installation needed for this file type ($extension)" -ForegroundColor Cyan
+            }
         } else {
             Write-Host "[ERROR] Download failed." -ForegroundColor Red
             pause
@@ -709,7 +760,7 @@ function Invoke-ApplicationInstallation {
 
     } catch {
         Write-Host "[ERROR] An error occurred during download or installation: $_" -ForegroundColor Red
-        Write-Host "[DEBUG] Download URL: $ExeLink" -ForegroundColor Yellow
+        Write-Host "[DEBUG] Download URL: $FileUrl" -ForegroundColor Yellow
         pause
         exit
     }
@@ -775,18 +826,18 @@ try {
     $filteredLinks = @($allLinks | Where-Object { 
         $_ -and $_.Length -gt 1 -and $_ -match '^https?://' -and $_ -match $extensionPattern
     })
-    if ($pattern) {
-        $patternLinks = @($filteredLinks | Where-Object { $_ -match $pattern })
-        if ($patternLinks.Count -gt 0) {
-            $filteredLinks = @($patternLinks)
+    if ($include) {
+        $includeLinks = @($filteredLinks | Where-Object { $_ -match $include })
+        if ($includeLinks.Count -gt 0) {
+            $filteredLinks = @($includeLinks)
         } else {
-            Write-Host "[WARNING] No files matching pattern '$pattern' found. Showing all $extension files." -ForegroundColor Yellow
+            Write-Host "[WARNING] No files matching include '$include' found. Showing all $extension files." -ForegroundColor Yellow
         }
     }
 
     if ($filteredLinks.Count -eq 0) {
         $debugFileName = "debug_page_content_$(Get-Date -Format 'yyyyMMdd_HHmmss').html"
-        $debugFilePath = Join-Path $downloadPath $debugFileName
+        $debugFilePath = Join-Path $destination $debugFileName
         
         if ($webResponse) {
             $webResponse.Content | Out-File -FilePath $debugFilePath -Encoding UTF8
@@ -897,15 +948,15 @@ try {
         Write-Host "[INFO] Single $extension file found: $fileName" -ForegroundColor Cyan
     }
 
-    # Launch installation
-    Invoke-ApplicationInstallation -ExeLink $selectedLink -DownloadPath $downloadPath
+    # Launch download + installation if file is executable
+    Invoke-Download -FileUrl $selectedLink -destination $destination -filename $name- -processedArgs $processedArgs
 
 } catch {
     Write-Host "[ERROR] An error occurred: $_" -ForegroundColor Red
     
     if ($webResponse) {
         $debugFileName = "error_page_content_$(Get-Date -Format 'yyyyMMdd_HHmmss').html"
-        $debugFilePath = Join-Path $downloadPath $debugFileName
+        $debugFilePath = Join-Path $destination $debugFileName
         $webResponse.Content | Out-File -FilePath $debugFilePath -Encoding UTF8
         Write-Host "[DEBUG] Error page content saved to: $debugFilePath" -ForegroundColor Yellow
     }
