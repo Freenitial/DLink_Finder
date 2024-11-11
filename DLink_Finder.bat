@@ -35,21 +35,67 @@
 
     :help
     echo.
-    echo ----------------------------------------------------------------------------------
-    echo DLink Finder - Find download links from a web page
-    echo.
-    echo Usage: %~n0 [/name name] [/url url] [/pattern pattern] [/extension ext]
-    echo.
-    echo Parameters:
-    echo   /name      Name for console output (optional)
-    echo   /url       URL of the webpage to analyze
-    echo   /pattern   Text pattern to search in found links (optional)
-    echo   /extension File extension to search for (optional)
-    echo.
-    echo Examples:
-    echo   %~n0 /url https://example.com /extension exe
-    echo   %~n0 /name "My Program" /url https://example.com /pattern "64bit" /extension msi
-    echo ----------------------------------------------------------------------------------
+    echo    =============================================================================
+    echo                                 DLink Finder v1.3                              
+    echo                        Download Files From Web Pages Easily
+    echo    =============================================================================
+    echo.   
+    echo    DESCRIPTION:
+    echo       Automatically finds and downloads files from web pages, GitHub repositories,
+    echo       and release pages. Supports multiple file types and filtering options.
+    echo.   
+    echo    SYNTAX:
+    echo       %~n0 [/name name] [/url url] [/pattern pattern] [/extension ext] 
+    echo           [/lucky] [/exclude pattern]
+    echo.   
+    echo    PARAMETERS:
+    echo       Required:
+    echo       -----------
+    echo       /url         URL of the webpage to analyze
+    echo.   
+    echo       Optional:
+    echo       -----------
+    echo       /name        Custom name for console output and messages
+    echo       /pattern     Text pattern to filter download links (e.g., "x64", "win64")
+    echo       /extension   Specific file extension to search for (e.g., exe, msi, zip)
+    echo       /lucky       Automatically select and download the first matching file
+    echo       /exclude     Pattern to exclude from search results (e.g., "beta", "test")
+    echo.   
+    echo    EXAMPLES:
+    echo       Basic usage:
+    echo       -----------
+    echo       %~n0 /url https://example.com /extension exe
+    echo       - Finds all .exe files on the specified webpage
+    echo.   
+    echo       Filtered search:
+    echo       -----------
+    echo       %~n0 /url https://example.com /pattern "64bit" /extension msi /exclude "beta"
+    echo       - Finds 64-bit MSI files, excluding beta versions
+    echo.   
+    echo       Quick download:
+    echo       -----------
+    echo       %~n0 /url https://github.com/user/repo/releases /extension zip /lucky
+    echo       - Automatically downloads the first ZIP file found
+    echo.   
+    echo       Named search:
+    echo       -----------
+    echo       %~n0 /name "Visual Studio Code" /url https://code.visualstudio.com /pattern "system"
+    echo       - Searches with custom name for system installer
+    echo.   
+    echo    NOTES:
+    echo       * Without /extension specified, searches for all common file types
+    echo       * /lucky is useful for automated scripts and known download pages
+    echo       * /pattern and /exclude support partial matches and are case-insensitive
+    echo       * Special support for GitHub repositories and release pages
+    echo       * Downloads are saved to the current directory
+    echo.   
+    echo    SUPPORTED SITES:
+    echo       * Generic websites
+    echo       * GitHub repositories
+    echo       * GitHub release pages
+    echo       * Direct download links
+    echo.   
+    echo    =============================================================================
     echo.
     exit /b 0
 
