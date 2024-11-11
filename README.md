@@ -34,7 +34,7 @@ Parameters
 | **/url**       | URL of the webpage to analyze         | Yes      |
 | **/pattern**   | Include links containing text         | No       |
 | **/exclude**   | Exclude links containing text         | No       |
-| **/extension** | File extension to search for          | No       |
+| **/extension** | Include file extension                | No       |
 | **/lucky**     | Auto select first result              | No       |
 
 --------------------
