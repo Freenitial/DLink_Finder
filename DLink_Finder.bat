@@ -23,7 +23,8 @@
     if /i "%~1"=="/lucky"    (set "lucky=1"      & shift & shift & goto :parse_args)
     if /i "%~1"=="/exclude"  (set "exclude=%~2"  & shift & shift & goto :parse_args)    
     REM We hit this point if an argument is not recognized
-    set "returncode=argument not recognized"
+    echo Argument not recognized : "%~1"
+    pause & exit /b 2
     :after_args
 
     powershell  -Command "Get-Content '%f0%' -Encoding UTF8 | Set-Content '%TEMP%\%n0%.ps1' -Encoding UTF8"
