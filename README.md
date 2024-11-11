@@ -30,8 +30,8 @@ DLink_Finder.bat [/name name] [/url url] [/pattern pattern] [/extension ext]
 Parameters
 |  Parameter | Description                           | Required |
 |:----------:|---------------------------------------|----------|
-| **/name**      | Name for console output               | No       |
 | **/url**       | URL of the webpage to analyze         | Yes      |
+| **/name**      | Name for console output               | No       |
 | **/pattern**   | Include links containing text         | No       |
 | **/exclude**   | Exclude links containing text         | No       |
 | **/extension** | Include file extension                | No       |
