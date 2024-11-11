@@ -24,16 +24,16 @@
 
 ### Arguments ⚙️
 
-|  Argument  | Description                                    | Required |
-|:----------:|------------------------------------------------|----------|
-| **/url** (REQUIRED) | URL of the webpage to analyze         | Yes      |
-| **/name**           | Name for console output               | No       |
-| **/destination**    | File path destination                 | No       |
-| **/include**        | Include links containing text         | No       |
-| **/exclude**        | Exclude links containing text         | No       |
-| **/extension**      | Include file extension                | No       |
-| **/lucky (0 or 1)** | Auto select first result              | No       |
-| **/arguments**      | Execute file downloaded with args.    | No       |
+|  Argument  | Description                                    |
+|:----------:|------------------------------------------------|
+| **/url** (REQUIRED) | URL of the webpage to analyze         |
+| **/name**           | Name for console output               |
+| **/destination**    | File path destination                 |
+| **/include**        | Include links containing text         |
+| **/exclude**        | Exclude links containing text         |
+| **/extension**      | Include file extension                |
+| **/lucky (0 or 1)** | Auto select first result              |
+| **/arguments**      | Execute file downloaded with args.    |
 
 --------------------
 
