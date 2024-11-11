@@ -39,9 +39,10 @@
     :help
     echo.
     echo    =============================================================================
-    echo                                 DLink Finder v1.5                              
+    echo                                 DLink Finder v1.5
+    echo                                        --- 
     echo                        Download Files From Web Pages Easily
-    echo                                        ---
+    echo                                   ------------
     echo                           Author : Freenitial on GitHub
     echo    =============================================================================
     echo.   
@@ -53,7 +54,7 @@
     echo    ARGUMENTS:
     echo       Required:
     echo       -----------
-    echo       /url         URL of the webpage to analyze
+    echo       /url              URL of the webpage to analyze
     echo.   
     echo       Optional:
     echo       -----------
