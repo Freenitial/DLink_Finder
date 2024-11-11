@@ -17,7 +17,7 @@
 - 🛡️ File integrity checks
 - 🎯 Filtering
 - 📊 File size display
-- 🛠️ Callable with arguments, or preconfigured
+- ⚙️ Callable with arguments, or preconfigured
 - 🪜 Can pass other arguments to a downloaded executable
 
 --------------------
