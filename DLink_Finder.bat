@@ -38,7 +38,7 @@
     :help
     echo.
     echo    =============================================================================
-    echo                                 DLink Finder v1.4                              
+    echo                                 DLink Finder v1.5                              
     echo                        Download Files From Web Pages Easily
     echo                                        ---
     echo                           Author : Freenitial on GitHub
@@ -148,7 +148,14 @@ $default_arguments = ""      # Execute file downloaded with args.
                              # Inside arg use ' instead of "
                              # You have to use **+** to separate multiple arguments
                              # Inside an argument you have to use **'** instead of **"**
-                                    
+
+                             # How to Launch executable with arguments:
+                             # ---------------------
+                             # DLink_Finder.bat ^
+                             #     /url https://example.com ^
+                             #     /extension msi ^
+                             #     /arguments "/qn + TANSFORMS='C:\Users\My name\transform.mst' + /l*v + 'log.log'"
+                             # ---------------------
 
 
 # ------------------------------------------------------------------------------ #
@@ -626,15 +633,31 @@ function Invoke-Download {
         [string]$filename,
         
         [Parameter(Mandatory = $false)]
-        [string[]]$processedArgs
+        [string[]]$processedArgs,
+
+        [Parameter(Mandatory = $false)]
+        [string]$expectedMD5,
+
+        [Parameter(Mandatory = $false)]
+        [string]$expectedSHA256,
+
+        [Parameter(Mandatory = $false)]
+        [long]$expectedSize
     )
 
+    # List of executable extensions that require installation
     $executableExtensions = @('exe', 'msi', 'msix', 'msp', 'appx', 'appxbundle', 'bat', 'cmd', 'ps1', 'vbs', 'reg')
 
+    # Create temporary directory if it doesn't exist
+    $tempDir = Join-Path $env:TEMP "DownloadTemp"
+    if (-not (Test-Path $tempDir)) {
+        New-Item -ItemType Directory -Path $tempDir | Out-Null
+    }
+
     try {
-        Write-Host "`n[INFO] Downloading file..." -ForegroundColor Cyan
+        Write-Host "`n[INFO] Starting download process..." -ForegroundColor Cyan
         
-        # Extract file name and extension
+        # Extract file name and extension from URL
         $originalFileName = try {
             $uri = [System.Uri]$FileUrl
             $lastSegment = $uri.Segments[-1]
@@ -659,9 +682,14 @@ function Invoke-Download {
         $extension = $extension.TrimStart('.')
         $isExecutable = $executableExtensions -contains $extension.ToLower()
 
-        $filePath = Join-Path $destination $fileName
-        Write-Host "[INFO] Downloading to: $filePath" -ForegroundColor Cyan
+        # Define temporary and final paths
+        $tempFilePath = Join-Path $tempDir "temp_$fileName"
+        $finalFilePath = Join-Path $destination $fileName
 
+        Write-Host "[INFO] Temporary file: $tempFilePath" -ForegroundColor Cyan
+        Write-Host "[INFO] Final destination: $finalFilePath" -ForegroundColor Cyan
+
+        # Progress bar function
         function Write-ProgressBar {
             param(
                 [int]$percent,
@@ -675,11 +703,11 @@ function Invoke-Download {
             $bar = "[" + ("=" * $filled) + (" " * $empty) + "]"
             
             Write-Host "`r" + (" " * 80) + "`r" -NoNewline
-            
             $message = "{0} {1}% {2:N1}MB/{3:N1}MB ({4:N1} MB/s)" -f $bar, $percent, $downloadedMB, $totalMB, $speed
             Write-Host $message -NoNewline -ForegroundColor Cyan
         }
 
+        # Download file
         try {
             $webRequest = [System.Net.HttpWebRequest]::Create($FileUrl)
             $webRequest.Method = "HEAD"
@@ -688,8 +716,12 @@ function Invoke-Download {
             $totalBytes = $response.ContentLength
             $response.Close()
 
-            $fileStream = [System.IO.File]::Create($filePath)
-            
+            # Verify expected size if provided
+            if ($expectedSize -gt 0 -and $totalBytes -ne $expectedSize) {
+                throw "File size mismatch. Expected: $expectedSize bytes, Actual: $totalBytes bytes"
+            }
+
+            $fileStream = [System.IO.File]::Create($tempFilePath)
             $webRequest = [System.Net.HttpWebRequest]::Create($FileUrl)
             $webRequest.UserAgent = "Mozilla/5.0"
             $response = $webRequest.GetResponse()
@@ -727,48 +759,74 @@ function Invoke-Download {
             $fileStream.Close()
             $responseStream.Close()
             $response.Close()
-            
+
+            # Verify file integrity
+            $fileHash = Get-FileHash $tempFilePath
+            $md5Hash = Get-FileHash $tempFilePath -Algorithm MD5
+
+            Write-Host "[INFO] File integrity check:" -ForegroundColor Cyan
+            Write-Host "SHA256: $($fileHash.Hash)" -ForegroundColor Cyan
+            Write-Host "MD5: $($md5Hash.Hash)" -ForegroundColor Cyan
+
+            $integrityCheck = $true
+
+            if ($expectedSHA256 -and $fileHash.Hash -ne $expectedSHA256) {
+                Write-Host "[ERROR] SHA256 hash mismatch!" -ForegroundColor Red
+                $integrityCheck = $false
+            }
+
+            if ($expectedMD5 -and $md5Hash.Hash -ne $expectedMD5) {
+                Write-Host "[ERROR] MD5 hash mismatch!" -ForegroundColor Red
+                $integrityCheck = $false
+            }
+
+            if (-not $integrityCheck) {
+                throw "File integrity check failed"
+            }
+
+            # Move file to final destination
+            Move-Item -Path $tempFilePath -Destination $finalFilePath -Force
+
+            # Process executable files
+            if ($isExecutable) {
+                Write-Host "[SUCCESS] Download completed. Launching installer..." -ForegroundColor Green
+                if ($processedArgs) {
+                    Start-Process -FilePath $finalFilePath -ArgumentList $processedArgs -Wait
+                } else {
+                    Start-Process -FilePath $finalFilePath -Wait
+                }
+                Write-Host "[SUCCESS] Installation completed successfully." -ForegroundColor Green
+                Remove-Item $finalFilePath -Force
+            } else {
+                Write-Host "[SUCCESS] File downloaded successfully to: $finalFilePath" -ForegroundColor Green
+                Write-Host "[INFO] No installation needed for this file type ($extension)" -ForegroundColor Cyan
+            }
+
         } catch {
-            Write-Host "`n[ERROR] Download failed: $_" -ForegroundColor Red
+            Write-Host "[ERROR] Download or verification failed: $_" -ForegroundColor Red
             if ($fileStream) { $fileStream.Close() }
             if ($responseStream) { $responseStream.Close() }
             if ($response) { $response.Close() }
+            if (Test-Path $tempFilePath) { Remove-Item $tempFilePath -Force }
             throw
         }
 
-        if (Test-Path $filePath) {
-            $fileSize = (Get-Item $filePath).Length
-            if ($fileSize -lt 1000) {
-                Write-Host "[WARNING] Downloaded file is suspiciously small ($fileSize bytes)" -ForegroundColor Yellow
-                $proceed = Read-Host "Do you want to proceed? (Y/N)"
-                if ($proceed -ne 'Y') {
-                    Remove-Item $filePath -Force
-                    Write-Host "[INFO] Operation cancelled by user." -ForegroundColor Yellow
-                    return
-                }
-            }
-
-            if ($isExecutable) {
-                Write-Host "[SUCCESS] Download completed. Launching installer..." -ForegroundColor Green
-                if ($processedArgs) { Start-Process -FilePath $filepath -ArgumentList $processedArgs -Wait }
-                else { Start-Process -FilePath $filepath -Wait }
-                Write-Host "[SUCCESS] Installation completed successfully." -ForegroundColor Green
-                Remove-Item $filePath -Force
-            } else {
-                Write-Host "[SUCCESS] File downloaded successfully to: $filePath" -ForegroundColor Green
-                Write-Host "[INFO] No installation needed for this file type ($extension)" -ForegroundColor Cyan
-            }
-        } else {
-            Write-Host "[ERROR] Download failed." -ForegroundColor Red
-            pause
-            exit
-        }
-
     } catch {
-        Write-Host "[ERROR] An error occurred during download or installation: $_" -ForegroundColor Red
+        Write-Host "[ERROR] An error occurred: $_" -ForegroundColor Red
         Write-Host "[DEBUG] Download URL: $FileUrl" -ForegroundColor Yellow
+        
+        # Cleanup
+        if (Test-Path $tempFilePath) {
+            Remove-Item $tempFilePath -Force
+        }
+        
         pause
         exit
+    } finally {
+        # Always cleanup temporary files
+        if (Test-Path $tempDir) {
+            Get-ChildItem $tempDir | Where-Object { $_.Name -like "temp_*" } | Remove-Item -Force
+        }
     }
 }
 
