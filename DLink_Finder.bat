@@ -72,25 +72,25 @@
     echo    EXAMPLES:
     echo       Basic usage:
     echo       -----------
-    echo       %~n0 /url https://example.com /extension exe
+    echo       %~n0.bat /url https://example.com /extension exe
     echo       - Finds all .exe files on the specified webpage
     echo.   
     echo       Exclude "beta", include MSI file type, include "64bit" in the name:
     echo       -----------
-    echo       %~n0 /url https://example.com /include "64bit" /extension msi /exclude "beta"
+    echo       %~n0.bat /url https://example.com /include "64bit" /extension msi /exclude "beta"
     echo       - Finds 64-bit MSI files, excluding beta versions
     echo.   
     echo       Quick download:
     echo       -----------
-    echo       %~n0 /url https://github.com/user/repo/releases /extension zip /lucky
+    echo       %~n0.bat /url https://github.com/user/repo/releases /extension zip /lucky
     echo       - Automatically downloads the first ZIP file found
     echo.   
     echo       Launch executable with arguments:
     echo       -----------
-    echo       %~n0 ^
-    echo           /url https://example.com ^
-    echo           /extension msi ^
-    echo           /lucky 1 ^
+    echo       %~n0.bat ^^
+    echo           /url https://example.com ^^
+    echo           /extension msi ^^
+    echo           /lucky 1 ^^
     echo           /arguments "/qn + TANSFORMS='C:\Users\My name\transform.mst' + /l*v + 'log.log'"
     echo.  
     echo.  
@@ -142,7 +142,13 @@ $default_include = ""        # Include links containing text
 $default_exclude = ""        # Exclude links containing text
 $default_extension = ""      # Include file extension
 $default_lucky = 0           # Auto select first result
-$default_arguments = ""      # Execute file downloaded with args. Use '' to separate.
+
+$default_arguments = ""      # Execute file downloaded with args.
+                             # If multiple arguments, don't forget to "" the full chain
+                             # Inside arg use ' instead of "
+                             # You have to use **+** to separate multiple arguments
+                             # Inside an argument you have to use **'** instead of **"**
+                                    
 
 
 # ------------------------------------------------------------------------------ #
