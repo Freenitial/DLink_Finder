@@ -48,7 +48,7 @@ To use with github releases, you have to specify "releases/latest" at the end of
 
 ### When using /arguments 🔧
 - If multiple arguments, don't forget to double quote `""` the full chain
-- You have to use **+** to separate multiple arguments 
+- You have to use `+` to separate multiple arguments 
 - Inside an argument you have to use `'` instead of `"`
 
 ```
